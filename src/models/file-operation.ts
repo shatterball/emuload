@@ -15,7 +15,12 @@ export class FileOperation implements Operation {
 
   segments: PartialDownload[] = [];
 
-  public start(url: string, contentLength: number, numOfConnections: number, headers?: request.Headers): events.EventEmitter {
+  public start(
+    url: string,
+    contentLength: number,
+    numOfConnections: number,
+    headers?: request.Headers
+  ): events.EventEmitter {
     const filePath: string = PathFormatter.format(this.saveDirectory, this.fileName);
 
     let endCounter: number = 0;

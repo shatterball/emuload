@@ -6,11 +6,12 @@ import throttle from 'lodash.throttle';
 import { AcceptRanges } from './accept-ranges';
 import { Operation } from './operation';
 import { FileOperation } from './file-operation';
-import { FileSegmentation } from '../utilities/file-segmentation';
 import { PartialRequestMetadata, PartialRequestQuery } from './partial-request-query';
 import { PartialDownloadRange } from './partial-download';
 import { StartOptions } from './start-options';
 import { UrlParser } from '../utilities/url-parser';
+import { FileSegmentation } from '../utilities/file-segmentation';
+import { AverageSpeed } from '../utilities/average-speed';
 
 export interface MultipartOperation {
   start(url: string, options?: StartOptions): MultipartOperation;
@@ -19,7 +20,10 @@ export interface MultipartOperation {
 export class MultipartDownload extends events.EventEmitter implements MultipartOperation {
   private static readonly SINGLE_CONNECTION: number = 1;
 
-  public start(url: string, options: StartOptions = { numOfConnections: MultipartDownload.SINGLE_CONNECTION }): MultipartDownload {
+  public start(
+    url: string,
+    options: StartOptions = { numOfConnections: MultipartDownload.SINGLE_CONNECTION }
+  ): MultipartDownload {
     options.numOfConnections = options.numOfConnections || MultipartDownload.SINGLE_CONNECTION;
 
     const validationError: Error = this.validateInputs(url, options);
@@ -47,10 +51,12 @@ export class MultipartDownload extends events.EventEmitter implements MultipartO
 
         const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
         const operation: Operation = new FileOperation(options.saveDirectory, fileName);
-        const segmentsRange: PartialDownloadRange[] = FileSegmentation.getSegmentsRange(metadata.contentLength, options.numOfConnections);
+        const segmentsRange: PartialDownloadRange[] = FileSegmentation.getSegmentsRange(
+          metadata.contentLength,
+          options.numOfConnections
+        );
         const throttleRate: number = options.throttle || 100;
-        let prevTime: number = 0;
-        let prevComplete: number = 0;
+        const avgSpeed: AverageSpeed = new AverageSpeed();
 
         operation
           .start(url, metadata.contentLength, options.numOfConnections, options.headers)
@@ -60,30 +66,18 @@ export class MultipartDownload extends events.EventEmitter implements MultipartO
           .on(
             'data',
             throttle((data) => {
-              const time: number = Date.now();
-              let speed: number = 0;
-              if (prevTime !== 0 && prevComplete !== 0) {
-                const deltaT = (time - prevTime) / 1000;
-                const deltaC = data.completed - prevComplete;
-
-                speed = deltaC / deltaT;
-              }
-              prevTime = time;
-              prevComplete = data.completed;
-
               const meta: Object = {
                 url,
                 saveDirectory: options.saveDirectory,
                 filename: fileName,
                 filesize: metadata.contentLength,
                 progress: (data.completed / metadata.contentLength) * 100,
-                speed,
+                speed: avgSpeed.getAvgSpeed(data.completed),
                 completed: data.completed,
                 segmentsRange,
                 positions: data.positions,
               };
               this.emit('data', meta);
-              console.log(meta);
             }, throttleRate)
           )
           .on('end', (output) => {

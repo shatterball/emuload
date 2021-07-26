@@ -9,7 +9,7 @@ export interface PartialDownloadRange {
 }
 
 export class PartialDownload extends events.EventEmitter {
-  r: request.Request;
+  request: request.Request;
   public start(url: string, range: PartialDownloadRange, headers?: request.Headers): PartialDownload {
     const options: request.CoreOptions = {};
 
@@ -17,7 +17,7 @@ export class PartialDownload extends events.EventEmitter {
     options.headers.Range = `${AcceptRanges.Bytes}=${range.start}-${range.end}`;
 
     let offset: number = range.start;
-    this.r = request
+    this.request = request
       .get(url, options)
       .on('error', (err) => {
         this.emit('error', err);
@@ -32,6 +32,6 @@ export class PartialDownload extends events.EventEmitter {
     return this;
   }
   public stop() {
-    this.r.abort();
+    this.request.abort();
   }
 }
