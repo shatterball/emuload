@@ -6,6 +6,7 @@
   "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "rm -rfv ./dist && tsc",
+    "watch": "tsc --watch --incremental",
     "lint:dry": "tslint -c tslint.json src/**/*.ts",
     "lint:fix": "tslint -c tslint.json --fix src/**/*.ts",
     "test": "nyc mocha --reporter spec ./dist/test"

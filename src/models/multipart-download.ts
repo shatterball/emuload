@@ -40,23 +40,23 @@ export class MultipartDownload extends events.EventEmitter implements MultipartO
     new PartialRequestQuery()
       .getMetadata(url, options.headers)
       .then((metadata) => {
+        const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
+        const throttleRate: number = options.throttle || 100;
+
         const metadataError: Error = this.validateMetadata(url, metadata);
         if (metadataError) {
           this.emit('error', metadataError);
         }
-
         if (metadata.acceptRanges !== AcceptRanges.Bytes) {
           options.numOfConnections = MultipartDownload.SINGLE_CONNECTION;
         }
 
-        const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
         const operation: Operation = new FileOperation(options.saveDirectory, fileName);
+        const avgSpeed: AverageSpeed = new AverageSpeed();
         const segmentsRange: PartialDownloadRange[] = FileSegmentation.getSegmentsRange(
           metadata.contentLength,
           options.numOfConnections
         );
-        const throttleRate: number = options.throttle || 100;
-        const avgSpeed: AverageSpeed = new AverageSpeed();
 
         operation
           .start(url, metadata.contentLength, options.numOfConnections, options.headers)
