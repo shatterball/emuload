@@ -2,14 +2,13 @@ import events = require('events');
 import fs = require('fs');
 import request = require('request');
 
+// import { Operation } from './operation';
 import { PathFormatter } from '../utilities/path-formatter';
 // import { UrlParser } from '../utilities/url-parser';
 import { FileSegmentation } from '../utilities/file-segmentation';
-
-import { Operation } from './operation';
 import { PartialDownload, PartialDownloadRange } from './partial-download';
 
-export class FileOperation implements Operation {
+export class FileOperation {
   private readonly emitter: events.EventEmitter = new events.EventEmitter();
   public constructor(private saveDirectory: string, private fileName?: string) {}
 
