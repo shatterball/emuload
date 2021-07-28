@@ -1,3 +1,3 @@
-import {MultipartDownload} from './models/multipart-download';
+import { Download } from './downloader-main';
 
-export = MultipartDownload;
+export = Download;

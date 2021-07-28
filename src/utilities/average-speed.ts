@@ -1,9 +1,9 @@
 export class AverageSpeed {
-  speedArray: number[] = [];
-  prevComplete: number = 0;
-  prevTime: number = 0;
-  index: number = 0;
-  sampleCount: number;
+  private speedArray: number[] = [];
+  private prevComplete: number = 0;
+  private prevTime: number = 0;
+  private index: number = 0;
+  private sampleCount = 4;
 
   constructor(sampleCount?: number) {
     this.sampleCount = sampleCount || 4;
@@ -17,6 +17,7 @@ export class AverageSpeed {
       const deltaT = (time - this.prevTime) / 1000;
       const deltaC = completed - this.prevComplete;
       speed = deltaC / deltaT;
+      // console.log(time, this.prevTime);
     }
 
     if (this.speedArray.length > 0) {

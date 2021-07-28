@@ -1,4 +1,4 @@
-import { PartialDownloadRange } from '../models/partial-download';
+import { PartialDownloadRange } from '../partial-download';
 
 export class FileSegmentation {
   public static getSegmentsRange(fileSize: number, numOfSegments: number): PartialDownloadRange[] {

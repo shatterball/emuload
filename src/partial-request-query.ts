@@ -1,13 +1,12 @@
 import request = require('request');
 
-export interface PartialRequestMetadata {
+export interface RequestMetadata {
   readonly acceptRanges: string;
   readonly contentLength: number;
 }
-
-export class PartialRequestQuery {
-  public getMetadata(url: string, headers?: request.Headers): Promise<PartialRequestMetadata> {
-    return new Promise<PartialRequestMetadata>((resolve, reject) => {
+export class RequestQuery {
+  public static getMetadata(url: string, headers?: request.Headers): Promise<RequestMetadata> {
+    return new Promise<RequestMetadata>((resolve, reject) => {
       const options: request.CoreOptions = {};
 
       options.headers = headers || null;

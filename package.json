@@ -33,6 +33,7 @@
   ],
   "dependencies": {
     "lodash.throttle": "^4.1.1",
+    "multistream": "^4.1.0",
     "request": "^2.88.0",
     "valid-filename": "^2.0.1",
     "validator": "^11.1.0"
