@@ -24,6 +24,7 @@ If the target server does not support partial requests, only a single HTTP GET c
 If the `numOfConnections` parameter is not provided, a single connection will be used.
 
 If the `saveDirectory` parameter is provided, the downloaded file will be saved to the `saveDirectory`.
+
 If the `throttleRate` is provided, the `data` event will fire after every `throttleRate` milisecond.
 
 If the `fileName` parameter is provided, the downloaded file will be renamed to `fileName`.
