@@ -19,6 +19,13 @@ export class RequestQuery {
           const req = request
             .get(url, options, (err, resp, body) => {
               if (err) {
+                if (err.message === 'aborted') {
+                  const metadata = {
+                    acceptRanges: AcceptRanges.None,
+                    contentLength: parseInt(res.headers['content-length'], 10),
+                  };
+                  return resolve(metadata);
+                }
                 return reject(err);
               }
               if (body.length === 501) {
