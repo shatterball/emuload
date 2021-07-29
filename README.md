@@ -1,12 +1,10 @@
-# multipart-download [![Build Status](https://travis-ci.org/zulhilmizainuddin/multipart-download.svg?branch=master)](https://travis-ci.org/zulhilmizainuddin/multipart-download)
-
-[![NPM](https://nodei.co/npm/multipart-download.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/multipart-download/)
+[![NPM](https://nodei.co/npm/emuload.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/emuload/)
 
 Speed up download of a single file with multiple HTTP GET connections running in parallel
 
-## Class: MultipartDownload
+## Class: Download
 
-MultipartDownload is an `EventEmitter`.
+Download is an `EventEmitter`.
 
 ### start(url[, options])
 - `url` &lt;string&gt; Url of file to be downloaded
@@ -45,24 +43,20 @@ The file being downloaded can be manually constructed and manipulated using the 
 #### Event: 'end'
 - `output` &lt;string&gt; Downloaded file buffer or downloaded file saved path
 
-`output` is the buffer of the downloaded file if the `writeToBuffer` parameter is set to `true`.
-
 `output` is the location of the saved file if the `saveDirectory` parameter is provided.
 
-`output` will be `null` if `writeToBuffer` is not set to `true` or `saveDirectory` parameter is not provided.
-
-### ~~start(url[, numOfConnections, saveDirectory])~~ :exclamation: DEPRECATED and REMOVED in v1.0.0
 
 ### Example
 
-#### Download without writing to buffer or saving to file
-
 ```javascript
-const MultipartDownload = require('multipart-download');
+const Download = require('emuload');
 
-new MultipartDownload()
+new Download()
   .start('https://homepages.cae.wisc.edu/~ece533/images/cat.png', {
-    numOfConnections: 5
+    numOfConnections: 5,
+    saveDirectory: __dirname,
+    filename: 'cat.png',
+    throttleRate: 100
   })
   .on('error', (err) => {
     // handle error here
@@ -71,51 +65,6 @@ new MultipartDownload()
     // manipulate data here
   })
   .on('end', () => {
-
-  });
-```
-
-#### Download and write to buffer
-
-```javascript
-const MultipartDownload = require('multipart-download');
-
-new MultipartDownload()
-  .start('https://homepages.cae.wisc.edu/~ece533/images/cat.png', {
-    numOfConnections: 5,
-    writeToBuffer: true
-  })
-  .on('error', (err) => {
-    // handle error here
-  })
-  .on('data', (data, offset) => {
-    // manipulate data here
-  })
-  .on('end', (buffer) => {
-    console.log(`Downloaded file buffer: ${buffer}`);
-  });
-```
-
-#### Download and save to file
-
-```javascript
-const os = require('os');
-
-const MultipartDownload = require('multipart-download');
-
-new MultipartDownload()
-  .start('https://homepages.cae.wisc.edu/~ece533/images/cat.png', {
-    numOfConnections: 5,
-    saveDirectory: os.tmpdir(),
-    fileName: 'kitty.png'
-  })
-  .on('error', (err) => {
-    // handle error here
-  })
-  .on('data', (data, offset) => {
-    // manipulate data here
-  })
-  .on('end', (filePath) => {
-    console.log(`Downloaded file path: ${filePath}`);
+    // download complete
   });
 ```

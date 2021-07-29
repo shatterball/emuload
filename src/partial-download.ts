@@ -13,71 +13,83 @@ export class PartialDownload extends events.EventEmitter {
   request: request.Request;
   headers: request.Headers;
   range: PartialDownloadRange;
-  index: number;
+
+  // index: number;
   startPosition: number;
   position: number;
   url: string;
   filepath: string;
 
-  constructor(index: number) {
-    super();
-    this.index = index;
-  }
-
-  public start(
+  constructor(
+    // index: number,
     url: string,
     filepath: string,
     range: PartialDownloadRange,
     headers?: request.Headers
-  ): PartialDownload {
-    const options: request.CoreOptions = {};
-    const writeStream: fs.WriteStream = fs.createWriteStream(this.filepath, { flags: 'a+' });
-
+  ) {
+    super();
+    // this.index = index;
     this.startPosition = range.start;
     this.url = url;
     this.filepath = filepath;
     this.headers = headers;
     this.range = range;
+  }
+
+  public start(): PartialDownload {
+    const options: request.CoreOptions = {};
+    let currFileSize: number;
 
     if (fs.existsSync(this.filepath)) {
-      this.startPosition += fs.statSync(this.filepath).size;
-      if (this.startPosition > range.end + 1) {
+      currFileSize = fs.statSync(this.filepath).size;
+      this.startPosition += currFileSize;
+      if (this.startPosition > this.range.end + 1) {
         this.emit('error', 'Thread corrupted');
-      } else if (this.startPosition === range.end + 1) {
+      } else if (this.startPosition === this.range.end + 1) {
         setImmediate(() => {
           this.emit('end');
         });
       }
     }
+    const writeStream: fs.WriteStream = fs.createWriteStream(this.filepath, {
+      flags: 'a+',
+    });
 
-    options.headers = headers || {};
-    options.headers.Range = `${AcceptRanges.Bytes}=${this.startPosition}-${range.end}`;
+    options.headers = this.headers || {};
+    options.headers.Range = `${AcceptRanges.Bytes}=${this.startPosition}-${this.range.end}`;
 
-    if (range.end - this.startPosition - 1 > 0) {
+    if (this.range.end - this.startPosition - 1 > 0) {
       this.position = this.startPosition;
       this.request = request
-        .get(this.url, options)
-
-        .on('error', (err) => {
-          console.log('PartialDownload Error');
-          this.emit('error', err);
+        .get(this.url, options, (err, res, body) => {
+          if (res.statusCode === 503) {
+            this.emit('closed', body.length);
+            writeStream.close();
+            // fs.statSync(this.filepath).size;
+            fs.truncateSync(this.filepath);
+          }
         })
-
+        .on('error', (err) => {
+          if (err.message !== 'aborted') this.emit('error', err);
+          else writeStream.close();
+        })
         .on('data', (data) => {
           writeStream.write(data, () => {
             this.position += data.length;
-            this.emit('data', this.position, data.length, this.index);
+            this.emit('data', this.position, data.length);
+            if (this.position === this.range.end + 1) {
+              this.emit('end');
+              writeStream.close();
+            }
           });
-        })
-
-        .on('end', () => {
-          this.emit('end');
-          writeStream.close();
         });
     }
     return this;
   }
   public stop() {
     this.request.abort();
+  }
+  public resume() {
+    this.start();
   }
 }

@@ -1,9 +1,9 @@
 {
-  "name": "multipart-download",
-  "version": "1.2.4",
+  "name": "emuload",
+  "version": "1.2.5",
   "description": "Speed up download of a single file with multiple HTTP GET connections running in parallel",
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "rm -rfv ./dist && tsc",
     "watch": "tsc --watch --incremental",
@@ -11,11 +11,11 @@
     "lint:fix": "tslint -c tslint.json --fix src/**/*.ts",
     "test": "nyc mocha --reporter spec ./dist/test"
   },
-  "author": "Zulhilmi Mohamed Zainuddin",
+  "author": "Rohan Biswas",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zulhilmizainuddin/multipart-download.git"
+    "url": "https://github.com/shatterball/emuload.git"
   },
   "keywords": [
     "accept",

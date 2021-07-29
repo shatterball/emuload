@@ -32,7 +32,7 @@ interface DownloadMetadata {
   progress: number;
   speed: number;
   threads: number;
-  completed: number;
+  complete: number;
   positions: number[];
   segmentsRange: PartialDownloadRange[];
   partFiles: string[];
@@ -53,7 +53,6 @@ export class Download extends events.EventEmitter implements DownloadInterface {
     const validationError: Error = this.validateInputs(url, options);
     if (options.throttleRate) this.THROTTLE_RATE = options.throttleRate;
     if (validationError) {
-      console.log('Validation Error');
       this.emit('error', validationError);
     }
     const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
@@ -67,7 +66,6 @@ export class Download extends events.EventEmitter implements DownloadInterface {
         .then((metadata) => {
           const metadataError: Error = this.validateMetadata(url, metadata);
           if (metadataError) {
-            console.log('Metadata Error');
             this.emit('error', metadataError);
           }
           if (metadata.acceptRanges !== AcceptRanges.Bytes) {
@@ -84,7 +82,7 @@ export class Download extends events.EventEmitter implements DownloadInterface {
             progress: 0,
             speed: 0,
             threads: options.numOfConnections,
-            completed: 0,
+            complete: 0,
             positions: [],
             segmentsRange: FileSegmentation.getSegmentsRange(
               metadata.contentLength,
@@ -96,7 +94,6 @@ export class Download extends events.EventEmitter implements DownloadInterface {
           this.startDownload(filepath, metaFile);
         })
         .catch((error) => {
-          console.log('RequestQuery error');
           this.emit('error', error);
         });
     }
@@ -105,10 +102,11 @@ export class Download extends events.EventEmitter implements DownloadInterface {
 
   private startDownload(filepath: string, metaFile: string): void {
     let endCounter: number = 0;
+    let overloadQueue: number[] = [];
     const avgSpeed: AverageSpeed = new AverageSpeed();
     const update = () => {
-      this.info.speed = avgSpeed.getAvgSpeed(this.info.completed);
-      this.info.progress = (this.info.completed / this.info.filesize) * 100;
+      this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
+      this.info.progress = (this.info.complete / this.info.filesize) * 100;
       fsp.writeFile(filepath + '.json', JSON.stringify(this.info, null, 4), {
         flag: 'w+',
         encoding: 'utf8',
@@ -119,16 +117,21 @@ export class Download extends events.EventEmitter implements DownloadInterface {
 
     this.partialDownloads = this.info.segmentsRange.map(
       (segmentRange: PartialDownloadRange, index: number) => {
-        return new PartialDownload(index)
-          .start(this.info.url, this.info.partFiles[index], segmentRange)
-
-          .on('data', (position, len, index) => {
-            this.info.completed += len;
+        return new PartialDownload(this.info.url, this.info.partFiles[index], segmentRange)
+          .start()
+          .on('data', (position, len) => {
+            this.info.complete += len;
             this.info.positions[index] = position;
             update_t();
           })
-
+          .on('closed', (len) => {
+            overloadQueue.push(index);
+            this.info.complete -= len;
+          })
           .on('end', () => {
+            if (overloadQueue.length > 0) {
+              this.partialDownloads[overloadQueue.shift()].resume();
+            }
             if (++endCounter === this.info.threads) {
               setTimeout(() => {
                 update();
@@ -141,10 +144,9 @@ export class Download extends events.EventEmitter implements DownloadInterface {
                     });
                   }
                 });
-              }, 100);
+              }, this.THROTTLE_RATE);
             }
           })
-
           .on('error', (error) => this.emit('error', error));
       }
     );
@@ -153,6 +155,11 @@ export class Download extends events.EventEmitter implements DownloadInterface {
   stop() {
     this.partialDownloads.forEach((part) => {
       part.stop();
+    });
+  }
+  resume() {
+    this.partialDownloads.forEach((part) => {
+      part.resume();
     });
   }
 
