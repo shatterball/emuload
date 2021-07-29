@@ -1,6 +1,6 @@
 {
   "name": "emuload",
-  "version": "1.2.5",
+  "version": "1.2.7",
   "description": "Speed up download of a single file with multiple HTTP GET connections running in parallel",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,8 +8,7 @@
     "build": "rm -rfv ./dist && tsc",
     "watch": "tsc --watch --incremental",
     "lint:dry": "tslint -c tslint.json src/**/*.ts",
-    "lint:fix": "tslint -c tslint.json --fix src/**/*.ts",
-    "test": "nyc mocha --reporter spec ./dist/test"
+    "lint:fix": "tslint -c tslint.json --fix src/**/*.ts"
   },
   "author": "Rohan Biswas",
   "license": "MIT",

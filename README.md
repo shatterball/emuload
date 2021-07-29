@@ -7,6 +7,7 @@ Speed up download of a single file with multiple HTTP GET connections running in
 Download is an `EventEmitter`.
 
 ### start(url[, options])
+
 - `url` &lt;string&gt; Url of file to be downloaded
 - `options` &lt;StartOptions&gt; Download options (Optional)
   - `numOfConnections` &lt;number&gt; Number of HTTP GET connections to use for performing the download (Optional)
@@ -22,9 +23,8 @@ If the target server does not support partial requests, only a single HTTP GET c
 
 If the `numOfConnections` parameter is not provided, a single connection will be used.
 
-If the `writeToBuffer` parameter is set to `true`, the downloaded file will be written into a buffer.
-
 If the `saveDirectory` parameter is provided, the downloaded file will be saved to the `saveDirectory`.
+If the `throttleRate` is provided, the `data` event will fire after every `throttleRate` milisecond.
 
 If the `fileName` parameter is provided, the downloaded file will be renamed to `fileName`.
 If the `fileName` parameter is not provided, the downloaded file will maintain its original file name.
@@ -32,39 +32,38 @@ If the `fileName` parameter is not provided, the downloaded file will maintain i
 If the `headers` parameter is provided, the headers will be included in the HTTP request.
 
 #### Event: 'error'
+
 - `err` &lt;Error&gt; Emitted error
 
 #### Event: 'data'
-- `data` &lt;string&gt; | &lt;Buffer&gt; Chunk of data received
-- `offset` &lt;number&gt; Offset for the chunk of data received
 
-The file being downloaded can be manually constructed and manipulated using the `data` and `offset` received. 
+- `data` &lt;Objecr&gt; Contains the current download progress and other metadata
 
 #### Event: 'end'
+
 - `output` &lt;string&gt; Downloaded file buffer or downloaded file saved path
 
 `output` is the location of the saved file if the `saveDirectory` parameter is provided.
 
-
 ### Example
 
 ```javascript
-const Download = require('emuload');
+const Download = require("emuload");
 
 new Download()
-  .start('https://homepages.cae.wisc.edu/~ece533/images/cat.png', {
+  .start("https://homepages.cae.wisc.edu/~ece533/images/cat.png", {
     numOfConnections: 5,
     saveDirectory: __dirname,
-    filename: 'cat.png',
-    throttleRate: 100
+    filename: "cat.png",
+    throttleRate: 100,
   })
-  .on('error', (err) => {
+  .on("error", (err) => {
     // handle error here
   })
-  .on('data', (data, offset) => {
+  .on("data", (data, offset) => {
     // manipulate data here
   })
-  .on('end', () => {
+  .on("end", () => {
     // download complete
   });
 ```
