@@ -1,6 +1,6 @@
 {
   "name": "emuload",
-  "version": "1.2.10",
+  "version": "1.2.11",
   "description": "Speed up download of a single file with multiple HTTP GET connections running in parallel",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

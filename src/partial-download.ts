@@ -21,15 +21,13 @@ export class PartialDownload extends events.EventEmitter {
   filepath: string;
 
   constructor(
-    // index: number,
     url: string,
     filepath: string,
     range: PartialDownloadRange,
     headers?: request.Headers
   ) {
     super();
-    // this.index = index;
-    this.startPosition = range.start;
+    this.startPosition;
     this.url = url;
     this.filepath = filepath;
     this.headers = headers;
@@ -38,11 +36,9 @@ export class PartialDownload extends events.EventEmitter {
 
   public start(): PartialDownload {
     const options: request.CoreOptions = {};
-    let currFileSize: number;
 
     if (fs.existsSync(this.filepath)) {
-      currFileSize = fs.statSync(this.filepath).size;
-      this.startPosition += currFileSize;
+      this.startPosition += fs.statSync(this.filepath).size;
       if (this.startPosition > this.range.end + 1) {
         this.emit('error', 'Thread corrupted');
       } else if (this.startPosition === this.range.end + 1) {
@@ -50,7 +46,7 @@ export class PartialDownload extends events.EventEmitter {
           this.emit('end');
         });
       }
-    }
+    } else this.startPosition = this.range.start;
     const writeStream: fs.WriteStream = fs.createWriteStream(this.filepath, {
       flags: 'a+',
     });
@@ -62,10 +58,9 @@ export class PartialDownload extends events.EventEmitter {
       this.position = this.startPosition;
       this.request = request
         .get(this.url, options, (err, res, body) => {
-          if (res.statusCode === 503) {
+          if (res && res.statusCode === 503) {
             this.emit('closed', body.length);
             writeStream.close();
-            // fs.statSync(this.filepath).size;
             fs.truncateSync(this.filepath);
           }
         })

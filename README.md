@@ -11,7 +11,7 @@ Download is an `EventEmitter`.
 - `url` &lt;string&gt; Url of file to be downloaded
 - `options` &lt;StartOptions&gt; Download options (Optional)
   - `numOfConnections` &lt;number&gt; Number of HTTP GET connections to use for performing the download (Optional)
-  - `throttleRate` &lt;boolean&gt; Delay the 'data' event (Optional)
+  - `throttleRate` &lt;number&gt; Delay the 'data' event (Optional)
   - `saveDirectory` &lt;string&gt; Directory to save the downloaded file (Optional)
   - `fileName` &lt;string&gt; Set name of the downloaded file (Optional)
   - `headers` &lt;Object&gt; Set custom HTTP headers (Optional)
@@ -28,6 +28,7 @@ If the `saveDirectory` parameter is provided, the downloaded file will be saved 
 If the `throttleRate` is provided, the `data` event will fire after every `throttleRate` milisecond.
 
 If the `fileName` parameter is provided, the downloaded file will be renamed to `fileName`.
+
 If the `fileName` parameter is not provided, the downloaded file will maintain its original file name.
 
 If the `headers` parameter is provided, the headers will be included in the HTTP request.

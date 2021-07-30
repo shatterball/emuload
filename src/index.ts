@@ -2,38 +2,23 @@ import events from 'events';
 import fs, { promises as fsp } from 'fs';
 import path from 'path';
 
-import multistream from 'multistream';
 import throttle from 'lodash.throttle';
-import { Headers } from 'request';
 
 import { Validation } from './utilities/validation';
+import { MergeFiles } from './utilities/merge-files';
 import { AcceptRanges } from './accept-ranges';
 import { RequestMetadata, RequestQuery } from './partial-request-query';
 import { PartialDownloadRange, PartialDownload } from './partial-download';
 import { UrlParser } from './utilities/url-parser';
 import { FileSegmentation } from './utilities/file-segmentation';
 import { AverageSpeed } from './utilities/average-speed';
+import { Options, DownloadMetadata } from './interfaces';
 
-interface Options {
-  numOfConnections?: number;
-  saveDirectory?: string;
-  fileName?: string;
-  headers?: Headers;
-  throttleRate?: number;
-}
-
-interface DownloadMetadata {
-  url: string;
-  saveDirectory: string;
-  filename: string;
-  filesize: number;
-  progress: number;
-  speed: number;
-  threads: number;
-  complete: number;
-  positions: number[];
-  segmentsRange: PartialDownloadRange[];
-  partFiles: string[];
+export enum DownloadStatus {
+  removed = 'removed',
+  paused = 'paused',
+  active = 'active',
+  complete = 'complete',
 }
 
 export class Download extends events.EventEmitter {
@@ -77,11 +62,12 @@ export class Download extends events.EventEmitter {
             saveDirectory: options.saveDirectory,
             filename: fileName,
             filesize: metadata.contentLength,
+            status: DownloadStatus.active,
             progress: 0,
             speed: 0,
-            threads: options.numOfConnections,
             complete: 0,
-            positions: segmentsRange.map((segmentRange) => segmentRange.start),
+            threads: options.numOfConnections,
+            positions: Array(options.numOfConnections).fill(0),
             segmentsRange,
             partFiles,
           };
@@ -103,7 +89,7 @@ export class Download extends events.EventEmitter {
       () => {
         this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
         this.info.progress = (this.info.complete / this.info.filesize) * 100;
-        fsp.writeFile(filepath + '.json', JSON.stringify(this.info, null, 4), {
+        fsp.writeFile(metaFile, JSON.stringify(this.info, null, 4), {
           flag: 'w+',
           encoding: 'utf8',
         });
@@ -112,74 +98,67 @@ export class Download extends events.EventEmitter {
       this.THROTTLE_RATE,
       { leading: true }
     );
-
-    this.partialDownloads = this.info.segmentsRange.map(
-      (segmentRange: PartialDownloadRange, index: number) => {
-        return new PartialDownload(this.info.url, this.info.partFiles[index], segmentRange)
-          .start()
-          .on('data', (position, len) => {
-            this.info.complete += len;
-            this.info.positions[index] = position;
-            update();
-          })
-          .on('closed', (len) => {
-            overloadQueue.push(index);
-            this.info.complete -= len;
-          })
-          .on('end', () => {
-            if (overloadQueue.length > 0) {
-              this.partialDownloads[overloadQueue.shift()].resume();
-            }
-            if (++endCounter === this.info.threads) {
-              setTimeout(() => {
-                this.emit('end');
-                this.mergeFiles(this.info.partFiles, filepath).then((flag) => {
-                  if (flag) {
-                    fs.unlinkSync(metaFile);
-                    this.info.partFiles.forEach((part) => {
-                      fs.unlinkSync(part);
-                    });
-                  }
-                });
-              }, this.THROTTLE_RATE);
-            }
-          })
-          .on('error', (error) => this.emit('error', error));
+    const onEnd = () => {
+      if (overloadQueue.length > 0) {
+        this.partialDownloads[overloadQueue.shift()].resume();
       }
-    );
+      if (++endCounter === this.info.threads) {
+        this.info.status = DownloadStatus.complete;
+        setTimeout(() => {
+          this.emit('end');
+          MergeFiles.merge(this.info.partFiles, filepath).then((flag) => {
+            if (flag) {
+              fs.unlinkSync(metaFile);
+              this.info.partFiles.forEach((part) => {
+                fs.unlinkSync(part);
+              });
+            }
+          });
+        }, this.THROTTLE_RATE);
+      }
+    };
+    const mapPartialDownloads = (segmentRange: PartialDownloadRange, index: number) =>
+      new PartialDownload(this.info.url, this.info.partFiles[index], segmentRange)
+        .start()
+        .on('data', (position, len) => {
+          this.info.complete += len;
+          this.info.positions[index] = position - this.info.segmentsRange[index].start;
+          if (this.info.complete === this.info.filesize) this.info.status = DownloadStatus.complete;
+          update();
+        })
+        .on('closed', (len) => {
+          overloadQueue.push(index);
+          this.info.complete -= len;
+        })
+        .on('end', onEnd)
+        .on('error', (error) => this.emit('error', error));
+
+    this.partialDownloads = this.info.segmentsRange.map(mapPartialDownloads);
   }
 
   stop() {
     this.partialDownloads.forEach((part) => {
       part.stop();
     });
+    this.info.status = DownloadStatus.paused;
+    this.emit('data', this.info);
   }
   resume() {
     this.partialDownloads.forEach((part) => {
       part.resume();
     });
+    this.info.status = DownloadStatus.active;
+    this.emit('data', this.info);
   }
-
-  mergeFiles(partFiles, filepath) {
-    if (fs.existsSync(filepath)) {
-      filepath = filepath + '_';
-    }
-    var output = fs.createWriteStream(filepath);
-    var inputList = partFiles.map((path) => {
-      return fs.createReadStream(path);
-    });
-    return new Promise((resolve, reject) => {
-      var multiStream = new multistream(inputList);
-      multiStream.pipe(output);
-      multiStream.on('end', () => {
-        output.close();
-        resolve(true);
+  remove() {
+    this.stop();
+    this.info.status = DownloadStatus.removed;
+    setTimeout(() => {
+      this.info.partFiles.forEach((part) => {
+        fs.unlinkSync(part);
       });
-      multiStream.on('error', () => {
-        output.close();
-        reject(false);
-      });
-    });
+      this.emit('end');
+    }, this.THROTTLE_RATE);
   }
 
   private validateInputs(url: string, options: Options): Error {
