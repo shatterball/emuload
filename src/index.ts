@@ -18,6 +18,7 @@ export enum DownloadStatus {
   removed = 'removed',
   paused = 'paused',
   active = 'active',
+  building = 'building',
   complete = 'complete',
 }
 
@@ -27,6 +28,7 @@ export class Download extends events.EventEmitter {
 
   private info: DownloadMetadata;
   private partialDownloads: PartialDownload[];
+  private metaFile: string;
 
   start(url: string, options?: Options): Download {
     const validationError: Error = this.validateInputs(url, options);
@@ -36,11 +38,11 @@ export class Download extends events.EventEmitter {
     }
     const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
     const filepath: string = path.join(options.saveDirectory, fileName);
-    const metaFile: string = filepath + '.json';
+    this.metaFile = filepath + '.json';
     try {
-      this.info = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      this.info = JSON.parse(fs.readFileSync(this.metaFile, 'utf8'));
       this.info.status = DownloadStatus.active;
-      this.startDownload(filepath, metaFile);
+      this.startDownload(filepath);
     } catch (error) {
       RequestQuery.getMetadata(url, options.headers)
         .then((metadata) => {
@@ -73,7 +75,7 @@ export class Download extends events.EventEmitter {
             partFiles,
           };
           this.emit('data', this.info);
-          this.startDownload(filepath, metaFile);
+          this.startDownload(filepath);
         })
         .catch((error) => {
           this.emit('error', error);
@@ -82,7 +84,7 @@ export class Download extends events.EventEmitter {
     return this;
   }
 
-  private startDownload(filepath: string, metaFile: string): void {
+  private startDownload(filepath: string): void {
     let endCounter: number = 0;
     let overloadQueue: number[] = [];
     const avgSpeed: AverageSpeed = new AverageSpeed();
@@ -90,7 +92,7 @@ export class Download extends events.EventEmitter {
       () => {
         this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
         this.info.progress = (this.info.complete / this.info.filesize) * 100;
-        fsp.writeFile(metaFile, JSON.stringify(this.info, null, 4), {
+        fsp.writeFile(this.metaFile, JSON.stringify(this.info, null, 4), {
           flag: 'w+',
           encoding: 'utf8',
         });
@@ -104,18 +106,13 @@ export class Download extends events.EventEmitter {
         this.partialDownloads[overloadQueue.shift()].resume();
       }
       if (++endCounter === this.info.threads) {
-        this.info.status = DownloadStatus.complete;
-        setTimeout(() => {
-          this.emit('end');
-          MergeFiles.merge(this.info.partFiles, filepath).then((flag) => {
-            if (flag) {
-              fs.unlinkSync(metaFile);
-              this.info.partFiles.forEach((part) => {
-                fs.unlinkSync(part);
-              });
-            }
-          });
-        }, this.THROTTLE_RATE);
+        this.info.status = DownloadStatus.building;
+        this.emit('data', this.info);
+        MergeFiles.merge(this.info.partFiles, filepath).then((flag) => {
+          this.info.status = DownloadStatus.complete;
+          this.emit('data', this.info);
+          if (flag) this.deleteFiles();
+        });
       }
     };
     const mapPartialDownloads = (segmentRange: PartialDownloadRange, index: number) =>
@@ -124,7 +121,7 @@ export class Download extends events.EventEmitter {
         .on('data', (position, len) => {
           this.info.complete += len;
           this.info.positions[index] = position - this.info.segmentsRange[index].start;
-          if (this.info.complete === this.info.filesize) this.info.status = DownloadStatus.complete;
+          // if (this.info.complete === this.info.filesize) this.info.status = DownloadStatus.complete;
           update();
         })
         .on('closed', (len) => {
@@ -154,7 +151,11 @@ export class Download extends events.EventEmitter {
   remove() {
     this.stop();
     this.info.status = DownloadStatus.removed;
+    this.deleteFiles();
+  }
+  deleteFiles() {
     setTimeout(() => {
+      fs.unlinkSync(this.metaFile);
       this.info.partFiles.forEach((part) => {
         fs.unlinkSync(part);
       });
