@@ -1,18 +1,18 @@
-import events from 'events';
-import fs, { promises as fsp } from 'fs';
-import path from 'path';
+import events from "events";
+import fs, { promises as fsp } from "fs";
+import path from "path";
 
-import multistream from 'multistream';
-import throttle from 'lodash.throttle';
-import { Headers } from 'request';
+import multistream from "multistream";
+import throttle from "lodash.throttle";
+import { Headers } from "request";
 
-import { Validation } from './utilities/validation';
-import { AcceptRanges } from './accept-ranges';
-import { RequestMetadata, RequestQuery } from './partial-request-query';
-import { PartialDownloadRange, PartialDownload } from './partial-download';
-import { UrlParser } from './utilities/url-parser';
-import { FileSegmentation } from './utilities/file-segmentation';
-import { AverageSpeed } from './utilities/average-speed';
+import { Validation } from "./utilities/validation";
+import { AcceptRanges } from "./accept-ranges";
+import { RequestMetadata, RequestQuery } from "./partial-request-query";
+import { PartialDownloadRange, PartialDownload } from "./partial-download";
+import { UrlParser } from "./utilities/url-parser";
+import { FileSegmentation } from "./utilities/file-segmentation";
+import { AverageSpeed } from "./utilities/average-speed";
 
 interface Options {
   numOfConnections?: number;
@@ -47,20 +47,20 @@ export class Download extends events.EventEmitter {
     const validationError: Error = this.validateInputs(url, options);
     if (options.throttleRate) this.THROTTLE_RATE = options.throttleRate;
     if (validationError) {
-      this.emit('error', validationError);
+      this.emit("error", validationError);
     }
     const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
     const filepath: string = path.join(options.saveDirectory, fileName);
-    const metaFile: string = filepath + '.json';
+    const metaFile: string = filepath + ".json";
     try {
-      this.info = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      this.info = JSON.parse(fs.readFileSync(metaFile, "utf8"));
       this.startDownload(filepath, metaFile);
     } catch (error) {
       RequestQuery.getMetadata(url, options.headers)
         .then((metadata) => {
           const metadataError: Error = this.validateMetadata(url, metadata);
           if (metadataError) {
-            this.emit('error', metadataError);
+            this.emit("error", metadataError);
           }
           if (metadata.acceptRanges !== AcceptRanges.Bytes) {
             options.numOfConnections = Download.SINGLE_CONNECTION;
@@ -71,7 +71,7 @@ export class Download extends events.EventEmitter {
           );
           const partFiles = Array(options.numOfConnections)
             .fill(filepath)
-            .map((f: string, i: number) => f + '.part.' + i.toString());
+            .map((f: string, i: number) => f + ".part." + i.toString());
           this.info = {
             url,
             saveDirectory: options.saveDirectory,
@@ -85,11 +85,11 @@ export class Download extends events.EventEmitter {
             segmentsRange,
             partFiles,
           };
-          this.emit('data', this.info);
+          this.emit("data", this.info);
           this.startDownload(filepath, metaFile);
         })
         .catch((error) => {
-          this.emit('error', error);
+          this.emit("error", error);
         });
     }
     return this;
@@ -101,14 +101,13 @@ export class Download extends events.EventEmitter {
     const avgSpeed: AverageSpeed = new AverageSpeed();
     const update = throttle(
       () => {
-        const speed = avgSpeed.getAvgSpeed(this.info.complete);
-        this.info.speed = speed === Infinity ? this.info.speed : speed;
+        this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
         this.info.progress = (this.info.complete / this.info.filesize) * 100;
-        fsp.writeFile(filepath + '.json', JSON.stringify(this.info, null, 4), {
-          flag: 'w+',
-          encoding: 'utf8',
+        fsp.writeFile(filepath + ".json", JSON.stringify(this.info, null, 4), {
+          flag: "w+",
+          encoding: "utf8",
         });
-        this.emit('data', this.info);
+        this.emit("data", this.info);
       },
       this.THROTTLE_RATE,
       { leading: true }
@@ -118,22 +117,22 @@ export class Download extends events.EventEmitter {
       (segmentRange: PartialDownloadRange, index: number) => {
         return new PartialDownload(this.info.url, this.info.partFiles[index], segmentRange)
           .start()
-          .on('data', (position, len) => {
+          .on("data", (position, len) => {
             this.info.complete += len;
             this.info.positions[index] = position;
             update();
           })
-          .on('closed', (len) => {
+          .on("closed", (len) => {
             overloadQueue.push(index);
             this.info.complete -= len;
           })
-          .on('end', () => {
+          .on("end", () => {
             if (overloadQueue.length > 0) {
               this.partialDownloads[overloadQueue.shift()].resume();
             }
             if (++endCounter === this.info.threads) {
               setTimeout(() => {
-                this.emit('end');
+                this.emit("end");
                 this.mergeFiles(this.info.partFiles, filepath).then((flag) => {
                   if (flag) {
                     fs.unlinkSync(metaFile);
@@ -145,7 +144,7 @@ export class Download extends events.EventEmitter {
               }, this.THROTTLE_RATE);
             }
           })
-          .on('error', (error) => this.emit('error', error));
+          .on("error", (error) => this.emit("error", error));
       }
     );
   }
@@ -162,9 +161,8 @@ export class Download extends events.EventEmitter {
   }
 
   mergeFiles(partFiles, filepath) {
-    console.log('Rebuilding file');
     if (fs.existsSync(filepath)) {
-      filepath = filepath + '_';
+      filepath = filepath + "_";
     }
     var output = fs.createWriteStream(filepath);
     var inputList = partFiles.map((path) => {
@@ -173,11 +171,11 @@ export class Download extends events.EventEmitter {
     return new Promise((resolve, reject) => {
       var multiStream = new multistream(inputList);
       multiStream.pipe(output);
-      multiStream.on('end', () => {
+      multiStream.on("end", () => {
         output.close();
         resolve(true);
       });
-      multiStream.on('error', () => {
+      multiStream.on("error", () => {
         output.close();
         reject(false);
       });
@@ -186,19 +184,19 @@ export class Download extends events.EventEmitter {
 
   private validateInputs(url: string, options: Options): Error {
     if (!Validation.isUrl(url)) {
-      return new Error('Invalid URL provided');
+      return new Error("Invalid URL provided");
     }
 
     if (!Validation.isValidNumberOfConnections(options.numOfConnections)) {
-      return new Error('Invalid number of connections provided');
+      return new Error("Invalid number of connections provided");
     }
 
     if (options.saveDirectory && !Validation.isDirectory(options.saveDirectory)) {
-      return new Error('Invalid save directory provided');
+      return new Error("Invalid save directory provided");
     }
 
     if (options.fileName && !Validation.isValidFileName(options.fileName)) {
-      return new Error('Invalid file name provided');
+      return new Error("Invalid file name provided");
     }
 
     return null;
