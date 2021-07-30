@@ -39,6 +39,7 @@ export class Download extends events.EventEmitter {
     const metaFile: string = filepath + '.json';
     try {
       this.info = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      this.info.status = DownloadStatus.active;
       this.startDownload(filepath, metaFile);
     } catch (error) {
       RequestQuery.getMetadata(url, options.headers)
