@@ -1,6 +1,6 @@
-import events = require('events');
-import request = require('request');
-import fs = require('fs');
+import events from 'events';
+import request from 'request';
+import fs from 'fs';
 
 import { AcceptRanges } from './accept-ranges';
 

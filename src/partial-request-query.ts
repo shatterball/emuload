@@ -1,4 +1,4 @@
-import request = require('request');
+import request from 'request';
 import { AcceptRanges } from './accept-ranges';
 
 export interface RequestMetadata {

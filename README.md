@@ -11,7 +11,7 @@ Download is an `EventEmitter`.
 - `url` &lt;string&gt; Url of file to be downloaded
 - `options` &lt;StartOptions&gt; Download options (Optional)
   - `numOfConnections` &lt;number&gt; Number of HTTP GET connections to use for performing the download (Optional)
-  - `writeToBuffer` &lt;boolean&gt; Store downloaded data to buffer (Optional)
+  - `throttleRate` &lt;boolean&gt; Delay the 'data' event (Optional)
   - `saveDirectory` &lt;string&gt; Directory to save the downloaded file (Optional)
   - `fileName` &lt;string&gt; Set name of the downloaded file (Optional)
   - `headers` &lt;Object&gt; Set custom HTTP headers (Optional)
@@ -23,7 +23,7 @@ If the target server does not support partial requests, only a single HTTP GET c
 
 If the `numOfConnections` parameter is not provided, a single connection will be used.
 
-If the `saveDirectory` parameter is provided, the downloaded file will be saved to the `saveDirectory`.
+If the `saveDirectory` parameter is provided, the downloaded file will be saved to `saveDirectory`.
 
 If the `throttleRate` is provided, the `data` event will fire after every `throttleRate` milisecond.
 
@@ -38,11 +38,11 @@ If the `headers` parameter is provided, the headers will be included in the HTTP
 
 #### Event: 'data'
 
-- `data` &lt;Objecr&gt; Contains the current download progress and other metadata
+- `data` &lt;Object&gt; Contains the current download progress and other metadata
 
 #### Event: 'end'
 
-- `output` &lt;string&gt; Downloaded file buffer or downloaded file saved path
+- Download complete
 
 `output` is the location of the saved file if the `saveDirectory` parameter is provided.
 
@@ -62,7 +62,7 @@ new Download()
     // handle error here
   })
   .on("data", (data, offset) => {
-    // manipulate data here
+    // get current download data here
   })
   .on("end", () => {
     // download complete
