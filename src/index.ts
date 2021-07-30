@@ -92,10 +92,6 @@ export class Download extends events.EventEmitter {
       () => {
         this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
         this.info.progress = (this.info.complete / this.info.filesize) * 100;
-        fsp.writeFile(this.metaFile, JSON.stringify(this.info, null, 4), {
-          flag: 'w+',
-          encoding: 'utf8',
-        });
         this.emit('data', this.info);
       },
       this.THROTTLE_RATE,
@@ -121,12 +117,16 @@ export class Download extends events.EventEmitter {
         .on('data', (position, len) => {
           this.info.complete += len;
           this.info.positions[index] = position - this.info.segmentsRange[index].start;
-          // if (this.info.complete === this.info.filesize) this.info.status = DownloadStatus.complete;
+          fsp.writeFile(this.metaFile, JSON.stringify(this.info, null, 4), {
+            flag: 'w+',
+            encoding: 'utf8',
+          });
           update();
         })
         .on('closed', (len) => {
           overloadQueue.push(index);
           this.info.complete -= len;
+          this.info.positions[index] = 0;
         })
         .on('end', onEnd)
         .on('error', (error) => this.emit('error', error));

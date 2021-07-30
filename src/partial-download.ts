@@ -27,7 +27,6 @@ export class PartialDownload extends events.EventEmitter {
     headers?: request.Headers
   ) {
     super();
-    this.startPosition;
     this.url = url;
     this.filepath = filepath;
     this.headers = headers;
@@ -38,7 +37,7 @@ export class PartialDownload extends events.EventEmitter {
     const options: request.CoreOptions = {};
 
     if (fs.existsSync(this.filepath)) {
-      this.startPosition += fs.statSync(this.filepath).size;
+      this.startPosition = this.range.start + fs.statSync(this.filepath).size;
       if (this.startPosition > this.range.end + 1) {
         this.emit('error', 'Thread corrupted');
       } else if (this.startPosition === this.range.end + 1) {
@@ -57,13 +56,7 @@ export class PartialDownload extends events.EventEmitter {
     if (this.range.end - this.startPosition - 1 > 0) {
       this.position = this.startPosition;
       this.request = request
-        .get(this.url, options, (err, res, body) => {
-          if (res && res.statusCode === 503) {
-            this.emit('closed', body.length);
-            writeStream.close();
-            fs.truncateSync(this.filepath);
-          }
-        })
+        .get(this.url, options)
         .on('error', (err) => {
           if (err.message !== 'aborted') this.emit('error', err);
           else writeStream.close();
@@ -72,11 +65,18 @@ export class PartialDownload extends events.EventEmitter {
           writeStream.write(data, () => {
             this.position += data.length;
             this.emit('data', this.position, data.length);
-            if (this.position === this.range.end + 1) {
-              this.emit('end');
-              writeStream.close();
-            }
           });
+        })
+        .on('end', () => {
+          setTimeout(() => {
+            if (this.position < this.range.end) {
+              this.emit('closed', this.position - this.range.start);
+              fs.truncateSync(this.filepath);
+            } else if (this.position === this.range.end + 1) {
+              this.emit('end');
+            }
+            writeStream.close();
+          }, 100);
         });
     }
     return this;
