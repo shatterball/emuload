@@ -14,7 +14,6 @@ export class PartialDownload extends events.EventEmitter {
   headers: request.Headers;
   range: PartialDownloadRange;
 
-  // index: number;
   startPosition: number;
   position: number;
   url: string;

@@ -1,8 +1,7 @@
 import events from 'events';
 import fs, { promises as fsp } from 'fs';
 import path from 'path';
-
-import throttle from 'lodash.throttle';
+import throttle from 'throttleit';
 
 import { Validation } from './utilities/validation';
 import { MergeFiles } from './utilities/merge-files';
@@ -29,6 +28,7 @@ export class Download extends events.EventEmitter {
   private info: DownloadMetadata;
   private partialDownloads: PartialDownload[];
   private metaFile: string;
+  private filepath: string;
 
   start(url: string, options?: Options): Download {
     const validationError: Error = this.validateInputs(url, options);
@@ -37,12 +37,12 @@ export class Download extends events.EventEmitter {
       this.emit('error', validationError);
     }
     const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
-    const filepath: string = path.join(options.saveDirectory, fileName);
-    this.metaFile = filepath + '.json';
+    this.filepath = path.join(options.saveDirectory, fileName);
+    this.metaFile = this.filepath + '.json';
     try {
       this.info = JSON.parse(fs.readFileSync(this.metaFile, 'utf8'));
       this.info.status = DownloadStatus.active;
-      this.startDownload(filepath);
+      this.startDownload();
     } catch (error) {
       RequestQuery.getMetadata(url, options.headers)
         .then((metadata) => {
@@ -58,7 +58,7 @@ export class Download extends events.EventEmitter {
             options.numOfConnections
           );
           const partFiles = Array(options.numOfConnections)
-            .fill(filepath)
+            .fill(this.filepath)
             .map((f: string, i: number) => f + '.part.' + i.toString());
           this.info = {
             url,
@@ -75,7 +75,7 @@ export class Download extends events.EventEmitter {
             partFiles,
           };
           this.emit('data', this.info);
-          this.startDownload(filepath);
+          this.startDownload();
         })
         .catch((error) => {
           this.emit('error', error);
@@ -84,19 +84,17 @@ export class Download extends events.EventEmitter {
     return this;
   }
 
-  private startDownload(filepath: string): void {
+  private startDownload(): void {
     let endCounter: number = 0;
     let overloadQueue: number[] = [];
     const avgSpeed: AverageSpeed = new AverageSpeed();
-    const update = throttle(
-      () => {
-        this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
-        this.info.progress = (this.info.complete / this.info.filesize) * 100;
-        this.emit('data', this.info);
-      },
-      this.THROTTLE_RATE,
-      { leading: true }
-    );
+
+    const update = throttle(() => {
+      this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
+      this.info.progress = (this.info.complete / this.info.filesize) * 100;
+      this.emit('data', this.info);
+    }, this.THROTTLE_RATE);
+
     const onEnd = () => {
       if (overloadQueue.length > 0) {
         this.partialDownloads[overloadQueue.shift()].resume();
@@ -104,7 +102,7 @@ export class Download extends events.EventEmitter {
       if (++endCounter === this.info.threads) {
         this.info.status = DownloadStatus.building;
         this.emit('data', this.info);
-        MergeFiles.merge(this.info.partFiles, filepath).then((flag) => {
+        MergeFiles.merge(this.info.partFiles, this.filepath).then((flag) => {
           this.info.status = DownloadStatus.complete;
           this.emit('data', this.info);
           if (flag) this.deleteFiles();

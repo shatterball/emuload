@@ -1,6 +1,6 @@
 {
   "name": "emuload",
-  "version": "1.2.13",
+  "version": "1.2.14",
   "description": "Speed up download of a single file with multiple HTTP GET connections running in parallel",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -31,9 +31,9 @@
     "threaded"
   ],
   "dependencies": {
-    "lodash.throttle": "^4.1.1",
     "multistream": "^4.1.0",
     "request": "^2.88.0",
+    "throttleit": "^1.0.0",
     "valid-filename": "^2.0.1",
     "validator": "^11.1.0"
   },
