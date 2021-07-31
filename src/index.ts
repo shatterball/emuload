@@ -29,6 +29,7 @@ export class Download extends events.EventEmitter {
   private partialDownloads: PartialDownload[];
   private metaFile: string;
   private filepath: string;
+  private headers: Object;
 
   start(url: string, options?: Options): Download {
     const validationError: Error = this.validateInputs(url, options);
@@ -39,6 +40,7 @@ export class Download extends events.EventEmitter {
     const fileName: string = options.fileName ? options.fileName : UrlParser.getFilename(url);
     this.filepath = path.join(options.saveDirectory, fileName);
     this.metaFile = this.filepath + '.json';
+    this.headers = options.headers === undefined ? {} : options.headers;
     try {
       this.info = JSON.parse(fs.readFileSync(this.metaFile, 'utf8'));
       this.info.status = DownloadStatus.active;
@@ -88,12 +90,17 @@ export class Download extends events.EventEmitter {
     let endCounter: number = 0;
     let overloadQueue: number[] = [];
     const avgSpeed: AverageSpeed = new AverageSpeed();
-
-    const update = throttle(() => {
+    const update = () => {
+      this.info.complete = this.info.positions.reduce((s, a) => s + a);
       this.info.speed = avgSpeed.getAvgSpeed(this.info.complete);
       this.info.progress = (this.info.complete / this.info.filesize) * 100;
+      fsp.writeFile(this.metaFile, JSON.stringify(this.info, null, 4), {
+        flag: 'w+',
+        encoding: 'utf8',
+      });
       this.emit('data', this.info);
-    }, this.THROTTLE_RATE);
+    };
+    const update_t = throttle(update, this.THROTTLE_RATE);
 
     const onEnd = () => {
       if (overloadQueue.length > 0) {
@@ -105,21 +112,17 @@ export class Download extends events.EventEmitter {
         MergeFiles.merge(this.info.partFiles, this.filepath).then((flag) => {
           this.info.status = DownloadStatus.complete;
           this.emit('data', this.info);
+          update();
           if (flag) this.deleteFiles();
         });
       }
     };
     const mapPartialDownloads = (segmentRange: PartialDownloadRange, index: number) =>
-      new PartialDownload(this.info.url, this.info.partFiles[index], segmentRange)
-        .start()
-        .on('data', (position, len) => {
-          this.info.complete += len;
-          this.info.positions[index] = position - this.info.segmentsRange[index].start;
-          fsp.writeFile(this.metaFile, JSON.stringify(this.info, null, 4), {
-            flag: 'w+',
-            encoding: 'utf8',
-          });
-          update();
+      new PartialDownload()
+        .start(this.info.url, this.info.partFiles[index], segmentRange, this.headers)
+        .on('data', (transferred) => {
+          this.info.positions[index] = transferred;
+          update_t();
         })
         .on('closed', (len) => {
           overloadQueue.push(index);
@@ -134,7 +137,7 @@ export class Download extends events.EventEmitter {
 
   stop() {
     this.partialDownloads.forEach((part) => {
-      part.stop();
+      part.pause();
     });
     this.info.status = DownloadStatus.paused;
     this.emit('data', this.info);
@@ -147,7 +150,9 @@ export class Download extends events.EventEmitter {
     this.emit('data', this.info);
   }
   remove() {
-    this.stop();
+    this.partialDownloads.forEach((part) => {
+      part.destroy();
+    });
     this.info.status = DownloadStatus.removed;
     this.deleteFiles();
   }

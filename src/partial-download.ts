@@ -1,6 +1,6 @@
 import events from 'events';
-import request from 'request';
 import fs from 'fs';
+import got from 'got';
 
 import { AcceptRanges } from './accept-ranges';
 
@@ -10,80 +10,72 @@ export interface PartialDownloadRange {
 }
 
 export class PartialDownload extends events.EventEmitter {
-  request: request.Request;
-  headers: request.Headers;
-  range: PartialDownloadRange;
+  gotStream;
+  writeStream: fs.WriteStream;
 
-  startPosition: number;
-  position: number;
-  url: string;
-  filepath: string;
-
-  constructor(
+  public start(
     url: string,
     filepath: string,
     range: PartialDownloadRange,
-    headers?: request.Headers
-  ) {
-    super();
-    this.url = url;
-    this.filepath = filepath;
-    this.headers = headers;
-    this.range = range;
-  }
+    headers?: Object
+  ): PartialDownload {
+    let filesize: number = 0;
+    let startPosition;
+    let position = 0;
 
-  public start(): PartialDownload {
-    const options: request.CoreOptions = {};
+    if (fs.existsSync(filepath)) {
+      filesize = fs.statSync(filepath).size;
+      startPosition = range.start + filesize;
 
-    if (fs.existsSync(this.filepath)) {
-      this.startPosition = this.range.start + fs.statSync(this.filepath).size;
-      if (this.startPosition > this.range.end + 1) {
-        this.emit('error', 'Thread corrupted');
-      } else if (this.startPosition === this.range.end + 1) {
-        setImmediate(() => {
-          this.emit('end');
-        });
-      }
-    } else this.startPosition = this.range.start;
-    const writeStream: fs.WriteStream = fs.createWriteStream(this.filepath, {
-      flags: 'a+',
+      if (startPosition > range.end + 1) fs.truncateSync(filepath);
+
+      if (startPosition === range.end + 1) this.emit('end');
+    } else startPosition = range.start;
+
+    const options = new Object({
+      headers: {
+        ...headers,
+        Range: `${AcceptRanges.Bytes}=${startPosition}-${range.end}`,
+      },
     });
 
-    options.headers = this.headers || {};
-    options.headers.Range = `${AcceptRanges.Bytes}=${this.startPosition}-${this.range.end}`;
+    if (range.end - startPosition - 1 > 0) {
+      this.writeStream = fs.createWriteStream(filepath, {
+        flags: 'a+',
+      });
+      this.gotStream = got.stream(url, options);
 
-    if (this.range.end - this.startPosition - 1 > 0) {
-      this.position = this.startPosition;
-      this.request = request
-        .get(this.url, options)
-        .on('error', (err) => {
-          if (err.message !== 'aborted') this.emit('error', err);
-          else writeStream.close();
+      this.gotStream
+        .on('downloadProgress', ({ transferred }) => {
+          position = filesize + transferred;
+          this.emit('data', position);
         })
-        .on('data', (data) => {
-          writeStream.write(data, () => {
-            this.position += data.length;
-            this.emit('data', this.position, data.length);
-          });
-        })
-        .on('end', () => {
-          setTimeout(() => {
-            if (this.position < this.range.end) {
-              this.emit('closed', this.position - this.range.start);
-              fs.truncateSync(this.filepath);
-            } else if (this.position === this.range.end + 1) {
-              this.emit('end');
-            }
-            writeStream.close();
-          }, 100);
+        .on('error', (error) => {
+          this.emit('error', error);
         });
+
+      this.writeStream
+        .on('error', (error) => {
+          this.emit('error', error);
+        })
+        .on('finish', () => {
+          if (range.start + position < range.end + 1) {
+            fs.truncateSync(filepath);
+            this.emit('closed');
+          } else this.emit('end');
+        });
+      this.gotStream.pipe(this.writeStream);
     }
     return this;
   }
-  public stop() {
-    this.request.abort();
+  public pause() {
+    this.gotStream.pause();
   }
   public resume() {
-    this.start();
+    this.gotStream.resume();
+  }
+  public destroy() {
+    this.gotStream.destroy();
+    this.writeStream.close();
   }
 }
