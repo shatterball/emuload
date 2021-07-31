@@ -10,9 +10,18 @@ export interface PartialDownloadRange {
 }
 
 export class PartialDownload extends events.EventEmitter {
-  gotStream;
-  writeStream: fs.WriteStream;
+  private gotStream;
+  private writeStream: fs.WriteStream;
+  private noTruncate: boolean;
+  private isPaused: boolean;
+  private isDestroyed: boolean;
+  startOptions: Array<any>;
 
+  constructor() {
+    super();
+    this.noTruncate = false;
+    this.isDestroyed = false;
+  }
   public start(
     url: string,
     filepath: string,
@@ -22,6 +31,8 @@ export class PartialDownload extends events.EventEmitter {
     let filesize: number = 0;
     let startPosition;
     let position = 0;
+
+    this.startOptions = [url, filepath, range, headers];
 
     if (fs.existsSync(filepath)) {
       filesize = fs.statSync(filepath).size;
@@ -51,7 +62,14 @@ export class PartialDownload extends events.EventEmitter {
           this.emit('data', position);
         })
         .on('error', (error) => {
-          this.emit('error', error);
+          if (error.message.includes('503')) {
+            // if (filesize > 0) fs.truncateSync(filepath);
+            this.isPaused = true;
+            this.emit('closed', filesize);
+            console.log('[partial-download.ts]Closing');
+          } else {
+            this.emit('error', error);
+          }
         });
 
       this.writeStream
@@ -60,21 +78,40 @@ export class PartialDownload extends events.EventEmitter {
         })
         .on('finish', () => {
           if (range.start + position < range.end + 1) {
-            fs.truncateSync(filepath);
-            this.emit('closed');
-          } else this.emit('end');
+            if (this.isDestroyed) {
+              this.emit('destroyed');
+            }
+          } else {
+            this.emit('end');
+          }
         });
       this.gotStream.pipe(this.writeStream);
     }
     return this;
   }
   public pause() {
-    this.gotStream.pause();
+    if (this.gotStream && !this.isPaused) {
+      this.noTruncate = true;
+      this.isPaused = true;
+      this.closeStreams();
+    }
   }
   public resume() {
-    this.gotStream.resume();
+    if (!this.isDestroyed)
+      if (this.isPaused) {
+        const [url, filepath, range, headers] = this.startOptions;
+        this.isPaused = false;
+        this.start(url, filepath, range, headers);
+      }
   }
   public destroy() {
+    if (this.gotStream) {
+      this.isDestroyed = true;
+      this.noTruncate = false;
+      this.closeStreams();
+    }
+  }
+  private closeStreams() {
     this.gotStream.destroy();
     this.writeStream.close();
   }

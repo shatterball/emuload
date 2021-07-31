@@ -89,6 +89,8 @@ export class Download extends events.EventEmitter {
   private startDownload(): void {
     let endCounter: number = 0;
     let overloadQueue: number[] = [];
+    let destroyCounter: number = 0;
+
     const avgSpeed: AverageSpeed = new AverageSpeed();
     const update = () => {
       this.info.complete = this.info.positions.reduce((s, a) => s + a);
@@ -104,16 +106,18 @@ export class Download extends events.EventEmitter {
 
     const onEnd = () => {
       if (overloadQueue.length > 0) {
-        this.partialDownloads[overloadQueue.shift()].resume();
+        setTimeout(() => {
+          this.partialDownloads[overloadQueue.shift()].resume();
+        }, this.THROTTLE_RATE);
       }
       if (++endCounter === this.info.threads) {
         this.info.status = DownloadStatus.building;
         this.emit('data', this.info);
-        MergeFiles.merge(this.info.partFiles, this.filepath).then((flag) => {
+        MergeFiles.merge(this.info.partFiles, this.filepath).then(() => {
           this.info.status = DownloadStatus.complete;
           this.emit('data', this.info);
-          update();
-          if (flag) this.deleteFiles();
+          this.deleteFiles();
+          this.emit('end');
         });
       }
     };
@@ -126,8 +130,14 @@ export class Download extends events.EventEmitter {
         })
         .on('closed', (len) => {
           overloadQueue.push(index);
-          this.info.complete -= len;
-          this.info.positions[index] = 0;
+          this.info.positions[index] = len;
+          console.log(overloadQueue);
+        })
+        .on('destroyed', () => {
+          if (++destroyCounter === this.info.threads) {
+            this.info.status = DownloadStatus.removed;
+            this.deleteFiles();
+          }
         })
         .on('end', onEnd)
         .on('error', (error) => this.emit('error', error));
@@ -135,7 +145,7 @@ export class Download extends events.EventEmitter {
     this.partialDownloads = this.info.segmentsRange.map(mapPartialDownloads);
   }
 
-  stop() {
+  pause() {
     this.partialDownloads.forEach((part) => {
       part.pause();
     });
@@ -149,21 +159,16 @@ export class Download extends events.EventEmitter {
     this.info.status = DownloadStatus.active;
     this.emit('data', this.info);
   }
-  remove() {
+  destroy() {
     this.partialDownloads.forEach((part) => {
       part.destroy();
     });
-    this.info.status = DownloadStatus.removed;
-    this.deleteFiles();
   }
   deleteFiles() {
-    setTimeout(() => {
-      fs.unlinkSync(this.metaFile);
-      this.info.partFiles.forEach((part) => {
-        fs.unlinkSync(part);
-      });
-      this.emit('end');
-    }, this.THROTTLE_RATE);
+    this.info.partFiles.forEach((part) => {
+      fs.unlinkSync(part);
+    });
+    fs.unlinkSync(this.metaFile);
   }
 
   private validateInputs(url: string, options: Options): Error {

@@ -2,7 +2,7 @@ import fs from 'fs';
 import multistream from 'multistream';
 
 export class MergeFiles {
-  public static merge(partFiles, filepath): Promise<boolean> {
+  public static merge(partFiles, filepath): Promise<void> {
     if (fs.existsSync(filepath)) {
       filepath = filepath + '_';
     }
@@ -15,11 +15,11 @@ export class MergeFiles {
       multiStream.pipe(output);
       multiStream.on('end', () => {
         output.close();
-        resolve(true);
+        resolve();
       });
       multiStream.on('error', () => {
         output.close();
-        reject(false);
+        reject();
       });
     });
   }
