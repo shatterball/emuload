@@ -7,20 +7,29 @@ export class MergeFiles {
       filepath = filepath + '_';
     }
     var output = fs.createWriteStream(filepath);
-    var inputList = partFiles.map((path) => {
-      return fs.createReadStream(path);
-    });
-    return new Promise((resolve, reject) => {
-      var multiStream = new multistream(inputList);
-      multiStream.pipe(output);
-      multiStream.on('end', () => {
-        output.close();
-        resolve();
+    if (partFiles.length === 1) {
+      return new Promise((resolve, reject) => {
+        fs.rename(partFiles[0], filepath, (err) => {
+          if (err) reject();
+          else resolve();
+        });
       });
-      multiStream.on('error', () => {
-        output.close();
-        reject();
+    } else {
+      var inputList = partFiles.map((path) => {
+        return fs.createReadStream(path);
       });
-    });
+      return new Promise((resolve, reject) => {
+        var multiStream = new multistream(inputList);
+        multiStream.pipe(output);
+        multiStream.on('end', () => {
+          output.close();
+          resolve();
+        });
+        multiStream.on('error', () => {
+          output.close();
+          reject();
+        });
+      });
+    }
   }
 }
