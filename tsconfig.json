@@ -9,4 +9,5 @@
     "esModuleInterop": true
   },
   "exclude": [".vscode", "node_modules", "dist"]
+  // "lib": ["es2015", "es2016", "dom", "es2018.promise"]
 }

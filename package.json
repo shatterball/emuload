@@ -33,7 +33,6 @@
   "dependencies": {
     "got": "^11.8.2",
     "multistream": "^4.1.0",
-    "request": "^2.88.0",
     "throttleit": "^1.0.0",
     "valid-filename": "^2.0.1",
     "validator": "^11.1.0"

@@ -12,14 +12,12 @@ export interface PartialDownloadRange {
 export class PartialDownload extends events.EventEmitter {
   private gotStream;
   private writeStream: fs.WriteStream;
-  private noTruncate: boolean;
   private isPaused: boolean;
   private isDestroyed: boolean;
   startOptions: Array<any>;
 
   constructor() {
     super();
-    this.noTruncate = false;
     this.isDestroyed = false;
   }
   public start(
@@ -36,14 +34,17 @@ export class PartialDownload extends events.EventEmitter {
 
     if (fs.existsSync(filepath)) {
       filesize = fs.statSync(filepath).size;
-      startPosition = range.start + filesize;
-
-      if (startPosition > range.end + 1) fs.truncateSync(filepath);
-
-      if (startPosition === range.end + 1) this.emit('end');
+      if (startPosition + filesize > range.end + 1) {
+        fs.truncateSync(filepath);
+        startPosition = range.start;
+      } else if (startPosition === range.end + 1) this.emit('end');
+      else {
+        startPosition = range.start + filesize;
+      }
     } else startPosition = range.start;
 
     const options = new Object({
+      retry: 0,
       headers: {
         ...headers,
         Range: `${AcceptRanges.Bytes}=${startPosition}-${range.end}`,
@@ -63,10 +64,8 @@ export class PartialDownload extends events.EventEmitter {
         })
         .on('error', (error) => {
           if (error.message.includes('503')) {
-            // if (filesize > 0) fs.truncateSync(filepath);
             this.isPaused = true;
             this.emit('closed', filesize);
-            console.log('[partial-download.ts]Closing');
           } else {
             this.emit('error', error);
           }
@@ -81,6 +80,8 @@ export class PartialDownload extends events.EventEmitter {
             if (this.isDestroyed) {
               this.emit('destroyed');
             }
+          } else if (range.start + position > range.end + 1) {
+            this.emit('closed');
           } else {
             this.emit('end');
           }
@@ -91,7 +92,6 @@ export class PartialDownload extends events.EventEmitter {
   }
   public pause() {
     if (this.gotStream && !this.isPaused) {
-      this.noTruncate = true;
       this.isPaused = true;
       this.closeStreams();
     }
@@ -107,7 +107,6 @@ export class PartialDownload extends events.EventEmitter {
   public destroy() {
     if (this.gotStream) {
       this.isDestroyed = true;
-      this.noTruncate = false;
       this.closeStreams();
     }
   }

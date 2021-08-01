@@ -131,7 +131,6 @@ export class Download extends events.EventEmitter {
         .on('closed', (len) => {
           overloadQueue.push(index);
           this.info.positions[index] = len;
-          console.log(overloadQueue);
         })
         .on('destroyed', () => {
           if (++destroyCounter === this.info.threads) {
