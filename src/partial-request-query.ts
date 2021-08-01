@@ -1,4 +1,3 @@
-import request from 'request';
 import got, { Response, CancelableRequest } from 'got';
 import { AcceptRanges } from './accept-ranges';
 
@@ -7,15 +6,14 @@ export interface RequestMetadata {
   readonly contentLength: number;
 }
 export class RequestQuery {
-  public static getMetadata(url: string, headers?: request.Headers): Promise<RequestMetadata> {
+  public static getMetadata(url: string, headers?: Object): Promise<RequestMetadata> {
     return new Promise<RequestMetadata>((resolve, reject) => {
-      const options: request.CoreOptions = {};
-      options.headers = headers || {};
+      const options = {
+        retry: 0,
+        headers: headers || {},
+      };
       got
-        .head(url, {
-          headers,
-          retry: 0,
-        })
+        .head(url, new Object(options))
         .then((res) => {
           const metadata = {
             acceptRanges: res.headers['accept-ranges'],
@@ -25,25 +23,24 @@ export class RequestQuery {
         })
         .catch(() => {
           let size = 0;
-          const range = 'bytes=0-500';
-          options.headers.Range = range;
-          const req: CancelableRequest<Response> = got.get(url, {
-            headers: { ...headers, Range: 'bytes=0-500' },
-            retry: 0,
-          });
+          options.headers['Range'] = `${AcceptRanges.Bytes}=0-500`;
+          const req: CancelableRequest<Response> = got.get(url, new Object(options));
           req
             .then((res) => {
               const metadata = {
                 acceptRanges: AcceptRanges.Bytes,
                 contentLength: parseInt(
-                  res.headers['content-range'].replace(range.replace('=', ' ') + '/', ''),
+                  res.headers['content-range'].replace(
+                    options.headers['Range'].replace('=', ' ') + '/',
+                    ''
+                  ),
                   10
                 ),
               };
               return resolve(metadata);
             })
             .catch((err) => {
-              if (err.name === 'CancelError') {
+              if (err === got.CancelError) {
                 const metadata = {
                   acceptRanges: AcceptRanges.None,
                   contentLength: size,

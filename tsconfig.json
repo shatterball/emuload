@@ -5,6 +5,7 @@
     "noImplicitAny": false,
     "sourceMap": false,
     "outDir": "dist",
+    "rootDir": "./",
     "declaration": true,
     "esModuleInterop": true
   },

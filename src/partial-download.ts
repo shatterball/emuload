@@ -10,7 +10,7 @@ export interface PartialDownloadRange {
 }
 
 export class PartialDownload extends events.EventEmitter {
-  private gotStream;
+  private gotStream: any;
   private writeStream: fs.WriteStream;
   private isPaused: boolean;
   private isDestroyed: boolean;

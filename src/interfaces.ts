@@ -9,6 +9,12 @@ export interface Options {
   throttleRate?: number;
 }
 
+export interface SchedulerOptions {
+  maxActiveDownloads?: number;
+  autoStart?: boolean;
+  numOfConnections?: number;
+}
+
 export interface DownloadMetadata {
   url: string;
   saveDirectory: string;
