@@ -1,11 +1,10 @@
 import { PartialDownloadRange } from './partial-download';
-import request from 'request';
 
 export interface Options {
   numOfConnections?: number;
   saveDirectory?: string;
   fileName?: string;
-  headers?: request.Headers;
+  headers?: Object;
   throttleRate?: number;
 }
 
