@@ -76,7 +76,7 @@ export class PartialDownload extends events.EventEmitter {
             this.emit('end');
             console.log('Ending');
           } else if (!this.isPaused) {
-            this.emit('closed');
+            this.emit('closed', filesize + position);
           }
         }, 100);
       });
