@@ -13,13 +13,8 @@ export class PartialDownload extends events.EventEmitter {
   private gotStream: any;
   private writeStream: fs.WriteStream;
   private isPaused: boolean;
-  private isDestroyed: boolean;
-  startOptions: Array<any>;
+  private startOptions: Array<any>;
 
-  constructor() {
-    super();
-    this.isDestroyed = false;
-  }
   public start(
     url: string,
     filepath: string,
@@ -31,6 +26,7 @@ export class PartialDownload extends events.EventEmitter {
     let position = 0;
 
     this.startOptions = [url, filepath, range, headers];
+    this.isPaused = false;
 
     if (fs.existsSync(filepath)) {
       filesize = fs.statSync(filepath).size;
@@ -76,14 +72,10 @@ export class PartialDownload extends events.EventEmitter {
           this.emit('error', error);
         })
         .on('finish', () => {
-          if (range.start + position < range.end + 1) {
-            if (this.isDestroyed) {
-              this.emit('destroyed');
-            }
-          } else if (range.start + position > range.end + 1) {
-            this.emit('closed');
-          } else {
+          if (range.start + position === range.end + 1) {
             this.emit('end');
+          } else if (!this.isPaused) {
+            this.emit('closed');
           }
         });
       this.gotStream.pipe(this.writeStream);
@@ -91,27 +83,23 @@ export class PartialDownload extends events.EventEmitter {
     return this;
   }
   public pause() {
-    if (this.gotStream && !this.isPaused) {
+    if (!this.isPaused) {
       this.isPaused = true;
       this.closeStreams();
     }
   }
   public resume() {
-    if (!this.isDestroyed)
-      if (this.isPaused) {
-        const [url, filepath, range, headers] = this.startOptions;
-        this.isPaused = false;
-        this.start(url, filepath, range, headers);
-      }
-  }
-  public destroy() {
-    if (this.gotStream) {
-      this.isDestroyed = true;
-      this.closeStreams();
+    if (this.isPaused) {
+      const [url, filepath, range, headers] = this.startOptions;
+      this.start(url, filepath, range, headers);
     }
   }
+  public destroy() {
+    this.emit('destroyed');
+    this.closeStreams();
+  }
   private closeStreams() {
-    this.gotStream.destroy();
-    this.writeStream.close();
+    if (this.gotStream) this.gotStream.destroy();
+    if (this.writeStream) this.writeStream.close();
   }
 }

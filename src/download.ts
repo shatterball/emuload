@@ -124,8 +124,8 @@ export class Download extends events.EventEmitter {
     const mapPartialDownloads = (segmentRange: PartialDownloadRange, index: number) =>
       new PartialDownload()
         .start(this.info.url, this.info.partFiles[index], segmentRange, this.headers)
-        .on('data', (transferred) => {
-          this.info.positions[index] = transferred;
+        .on('data', (length) => {
+          this.info.positions[index] = length;
           update_t();
         })
         .on('closed', (len) => {
@@ -145,25 +145,28 @@ export class Download extends events.EventEmitter {
   }
 
   pause() {
-    this.partialDownloads.forEach((part) => {
-      part.pause();
-    });
-    this.info.status = DownloadStatus.paused;
-    this.emit('data', this.info);
+    if (this.info.status !== DownloadStatus.building) {
+      this.partialDownloads.forEach((part) => {
+        part.pause();
+      });
+      this.info.status = DownloadStatus.paused;
+    }
   }
+
   resume() {
     this.partialDownloads.forEach((part) => {
       part.resume();
     });
     this.info.status = DownloadStatus.active;
-    this.emit('data', this.info);
   }
+
   destroy() {
     this.partialDownloads.forEach((part) => {
       part.destroy();
     });
   }
-  deleteFiles() {
+
+  private deleteFiles() {
     this.info.partFiles.forEach((part) => {
       fs.unlinkSync(part);
     });
