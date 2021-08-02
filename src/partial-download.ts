@@ -48,38 +48,39 @@ export class PartialDownload extends events.EventEmitter {
       },
     });
 
-    if (range.end - startPosition - 1 > 0) {
-      this.gotStream = got
-        .stream(url, options)
-        .on('downloadProgress', ({ transferred }) => {
-          position = filesize + transferred;
-          this.emit('data', position);
-        })
-        .on('error', (error) => {
-          if (error.message.includes('503')) {
-            this.isPaused = true;
-            this.emit('closed', filesize);
-          } else {
-            this.emit('error', error);
-          }
-        });
-
-      this.writeStream = fs
-        .createWriteStream(filepath, {
-          flags: 'a+',
-        })
-        .on('error', (error) => {
+    this.gotStream = got
+      .stream(url, options)
+      .on('downloadProgress', ({ transferred }) => {
+        position = filesize + transferred;
+        this.emit('data', position);
+      })
+      .on('error', (error) => {
+        if (error.message.includes('503')) {
+          this.isPaused = true;
+          this.emit('closed', filesize);
+        } else {
           this.emit('error', error);
-        })
-        .on('finish', () => {
+        }
+      });
+
+    this.writeStream = fs
+      .createWriteStream(filepath, {
+        flags: 'a+',
+      })
+      .on('error', (error) => {
+        this.emit('error', error);
+      })
+      .on('finish', () => {
+        setTimeout(() => {
           if (range.start + position === range.end + 1) {
             this.emit('end');
+            console.log('Ending');
           } else if (!this.isPaused) {
             this.emit('closed');
           }
-        });
-      this.gotStream.pipe(this.writeStream);
-    }
+        }, 100);
+      });
+    this.gotStream.pipe(this.writeStream);
     return this;
   }
   public pause() {
