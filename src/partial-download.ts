@@ -3,6 +3,7 @@ import fs from 'fs';
 import got from 'got';
 
 import { AcceptRanges } from './accept-ranges';
+import Request from 'got/dist/source/core';
 
 export interface PartialDownloadRange {
   readonly start: number;
@@ -10,7 +11,7 @@ export interface PartialDownloadRange {
 }
 
 export class PartialDownload extends events.EventEmitter {
-  private gotStream: any;
+  private gotStream: Request;
   private writeStream: fs.WriteStream;
   private isPaused: boolean;
   private startOptions: Array<any>;
@@ -48,12 +49,8 @@ export class PartialDownload extends events.EventEmitter {
     });
 
     if (range.end - startPosition - 1 > 0) {
-      this.writeStream = fs.createWriteStream(filepath, {
-        flags: 'a+',
-      });
-      this.gotStream = got.stream(url, options);
-
-      this.gotStream
+      this.gotStream = got
+        .stream(url, options)
         .on('downloadProgress', ({ transferred }) => {
           position = filesize + transferred;
           this.emit('data', position);
@@ -67,7 +64,10 @@ export class PartialDownload extends events.EventEmitter {
           }
         });
 
-      this.writeStream
+      this.writeStream = fs
+        .createWriteStream(filepath, {
+          flags: 'a+',
+        })
         .on('error', (error) => {
           this.emit('error', error);
         })
